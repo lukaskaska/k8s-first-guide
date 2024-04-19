@@ -1,0 +1,17 @@
+# Deployment - Update
+
+This page dive into the process of updating deployments in Kubernetes.
+
+Imagine you're creating a pipeline to continuously deploy or update your application. Typically, only the Docker image version changes between deployments. How does Kubernetes manage these updates?
+
+During the initial deployment, Kubernetes creates the required resources, such as pods, which are then started and transitioned to a running state. However, when you modify the deployment configuration, either through the API or CLI, Kubernetes detects this change and seeks to align the actual state with the desired state.
+
+Consider the scenario where you apply the same YAML configuration used in the previous deployment but with a different Docker image version:
+
+1. **Check for Existing Deployment**: Begin by verifying the presence of the previous NGINX deployment using `kubectl get deployments`. If it's not found, apply the YAML file from the `examples/deployment` directory.
+
+2. **Apply Updated Configuration**: Apply the modified YAML file from the `examples/updated-deployment` folder. The output should be "deployment.apps/nginx-deployment configured"
+
+3. **Update Process**: Kubernetes initiates the update process by first launching pods for the new deployment. It then verifies if these pods initialize successfully. If successful, Kubernetes terminates the old pods and replaces them with the new ones. However, if initialization fails for any new pods, the old pods remain active, also the new one (with error) to allow the debugging of the issue.
+
+4. **Handling Corner Cases**: It's worth noting that while Kubernetes automatically restarts pods when the deployment configuration changes, the same doesn't apply to secondary resources like config maps and secrets. In such cases, manual pod restarts or custom solutions may be necessary.

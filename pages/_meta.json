@@ -1,0 +1,6 @@
+{
+  "index": "Kubernetes getting started",
+  "docker": "Docker",
+  "kind": "kind",
+  "pod": "Pod"
+}

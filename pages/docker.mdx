@@ -1,0 +1,103 @@
+# Docker first image
+
+The first step to using Kubernetes is to understand how containerized applications work and how to create them, because kubernetes is an open-source system for automating deployment, scaling, and management of <b>containerized applications</b>.
+
+In this step, we will quickly create a test application and build a Docker image of it. Later, we will run this application to see firsthand what we are doing.
+
+## First Dockerfile
+
+Today, most backend applications include a Dockerfile in their repository. This practice simplifies local testing across different machines (with multiple developers) and establishes an automated environment. It mitigates the need for complex application setups and eliminates dependencies on specific operating systems.
+
+Each application will have unique requirements in its Dockerfile. Here are some examples:
+
+1. Base Image: Defining the base image for the Docker container, such as FROM python:3.9 for a Python application or FROM node:14 for a Node.js application.
+2. OS packages: Some applications require specific OS packages to run properly. So, in the Dockerfile, we install these packages to create the necessary environment.
+3. Container Startup Command: Specifying the command to run when the container starts, typically using the CMD instruction to execute the application or a script.
+
+
+Now, to keep it simple, let's create a Dockerfile for our test application that doesn't require any complex setup.
+
+In the repository of this application, we have a folder called 'examples.' Navigate to the 'examples/docker' directory, where you will find the following files:
+
+1. index.js
+2. package.json
+3. Dockerfile
+
+The index.js file contains only a getting started of a fastify server, the package.json contains only the fastify dependency and the Dockerfile contains only the basic to install the dependencies and start the app.
+
+
+Now let's focus exclusively on the Dockerfile.
+
+
+```yaml
+FROM node:20
+
+WORKDIR /app
+
+COPY package.json package.json
+COPY package-lock.json package-lock.json
+
+RUN npm ci
+
+COPY ./index.js .
+
+CMD [ "node", "index.js" ]
+```
+
+The <b>first line</b> is responsible for defining what type of image will be built on, almost as if we choose which OS our app will run on.
+
+In this example, we're utilizing a base image of Node.js version 20. This image is built on Debian's Bullseye version. If you're curious about the definition of a Docker base image, you can always refer to the Docker website or the [official Node.js Dockerfile](https://github.com/nodejs/docker-node/blob/e8dc03502488e162b6860a6adc3ee8e8ae517e87/20/bookworm/Dockerfile).
+
+The <b>second line</b> sets the working directory to '/app' to prevent errors or misplacements, ensuring that all subsequent commands execute within this directory.
+
+The <b>third and fourth lines</b> copy the application's dependency files into the container. Subsequently, the <b>fifth line</b> runs 'npm ci', which installs only the necessary dependencies without dev dependencies. While we could also copy 'node_modules', 'npm ci' is preferred for minimizing the image size by excluding unnecessary dependencies.
+
+The <b>sixth line</b> copies our application into the image, while the last line executes the command to start our app.
+
+
+### Extra Comments:
+
+- **Multiple Steps for Production Environments**: In production environments, consider using multiple steps in the Dockerfile. This approach results in smaller and less vulnerable images. More information can be found [here](https://docs.docker.com/build/building/multi-stage/).
+
+- **Handling Private npm Registries**: Companies often use private npm registries to store npm packages. Additional steps may be required to handle npm authentication. For npm registries from npm itself, refer to [this guide](https://docs.npmjs.com/docker-and-private-modules). For private registries from other sources (e.g., Azure), utilize the .npmrc file and the NPM_TOKEN environment variable for critical information. Learn how to create the .npmrc file [here](https://learn.microsoft.com/en-us/azure/devops/artifacts/npm/npmrc?view=azure-devops&tabs=windows%2Cclassic) and how to use it inside the Dockerfile [here](https://www.mimiz.fr/npm-azure-devops-doker-authentication).
+
+- **Custom Entrypoint**: The entrypoint can be simple or anything that your need/want. For instance, if your app requires running a script before startup, this is the place to define it.
+
+## Building the Image
+
+With everything in place, let's build our image and run it locally for testing. First, ensure that Docker is installed and running on your system.
+
+To build the image, follow these steps:
+
+1. Open your terminal and navigate to the 'examples/docker' folder.
+   - Run `ls` to confirm that you are inside the 'examples/docker' folder.
+
+2. Run the command:
+   ```
+   docker build -t somename/backend-00 .
+   ```
+   This command builds the image. The name 'somename/backend-00' is arbitrary for now but will become important in the future. Don't forget to include the dot at the end of the command.
+
+3. After successful build, you should see a message like "naming to docker.io/somename/backend-00". This indicates that the image is now available in your local Docker registry. You can verify this by running:
+   ```
+   docker images
+   ```
+
+4. Now, run the app using the command:
+   ```
+   docker run -d -p 3000:3000 somename/backend-00
+   ```
+   - The `-d` flag runs the container in detach mode, docker will start your container and return you to the terminal prompt.
+   - The `-p 3000:3000` flag binds port 3000 of the container to TCP port 3000 on 127.0.0.1 of the host. More information [here](https://docs.docker.com/reference/cli/docker/container/run/#publish).
+   - Replace `somename/backend-00` with the image name. You can specify a version like `somename/backend-00:v1`.
+
+5. To view the logs of the container, use:
+   - `docker ps` to list all running containers and get the container id.
+   - `docker logs <container_id>` to view logs.
+   - `docker logs -f <container_id>` to follow the logs continuously.
+
+6. To stop the container:
+   - `docker ps` to list all running containers.
+   - `docker stop <container_id>` or `docker kill <container_id>`. The former stops the container gracefully, while the latter kills the process immediately.
+
+Now you're ready to move on to the [next step!](/kind) 😊

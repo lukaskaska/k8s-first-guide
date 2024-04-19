@@ -1,0 +1,92 @@
+# Deployment
+
+## Initial Deployment
+
+Returning to the foundational concepts on the first pages, Kubernetes serves as an open-source system designed for the automation of deployment, scaling, and management of containerized applications.
+
+To configure Kubernetes to reflect the desired state, we interact with the Kubernetes API, which exposes various "domains" within the platform, referred to as "kinds." Here are some examples:
+
+- Deployment
+- Service
+- Pod
+- Namespace
+- ConfigMap
+- Ingresses
+- Secrets
+- CronJobs
+
+You can retrieve the entire list of resources using the command `kubectl api-resources`, where the first column represents the resource name and the last column indicates the corresponding "kind".
+
+In most cases, we utilize the `kubectl` command-line interface (CLI) to access the API, passing YAML files as the data format (although JSON can also be used, YAML is more commonly used within the community).
+
+Back to the desired state, this is the key to understand the Deployment kind. Within a deployment, we configure our entire application, specifying parameters such as the number of replicas, resource utilization, environment variables, volumes, name, port, and, most importantly, the image (including it's version) to deploy.
+
+For official Kubernetes documentation on Deployment concepts, refer to [this link](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/), and for the API documentation, visit [here](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/deployment-v1/).
+
+
+### First deployment file
+
+Here we have a simple deployment file (also available in the examples/deployment directory):
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        env:
+        - name: ENV1
+          value: "value1"
+        - name: ENV2
+          value: "value2"
+        ports:
+        - containerPort: 80
+```
+
+1. Firstly, we define the API version (although there isn't much choice here, so we can overlook it for now).
+
+2. We specify the kind of file, which is a deployment. Consequently, everything needs to respect the [API documentation](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/deployment-v1/).
+
+3. In the metadata field, we assign the application name and one label. Although the label may not be directly relevant to the system, it proves useful for filtering and querying information in the future (e.g., `kubectl get pods -l app=nginx`).
+
+4. The spec section contains the most critical components:
+   - 4.1 We set the number of replicas to 3, resulting in the creation of 3 Pods for the application (refer to the Pod page for details).
+   - 4.2 The selector field is crucial for connecting our deployment with other kinds, such as the "service" kind, in the future.
+   - 4.3 Within the template field, we define the pod's specifications. Each pod will follow to this template definition, including:
+     - 4.3.1 Additional labels are added for easier filtering in the future. It's important to note that Kubernetes validates if the selector labels match the template labels; otherwise, the deployment will fail.
+     - 4.3.2 In the template.spec section, we define the container(s) with their name, image, version, and container port.
+     - 4.3.3 We also include some environment variables (in the future, we may add variables from secrets as well).
+
+One quick tip here, most of the times the basic deployement file with secrets will be good enough for the majority of apps, but if you need anything else, there is a lot of examples available in the internet, so basically get the example and change the value following your needs.
+
+Some action now!
+
+Let's take some action now!
+
+1. Navigate to the `examples/deployment` directory in the root of this project.
+2. Use the command `ls` to confirm the presence of the `deployment.yaml` file.
+3. Execute `kubectl apply -f deployment.yaml`. The result should indicate: "deployment.apps/nginx-deployment created".
+4. Run `kubectl get pods`. The output might initially show the status as "creating" or "pending". Wait momentarily and re-run the command.
+   ```sh
+   nginx-deployment-7db45ddcff-44rhk   1/1     Running   0          20s
+   nginx-deployment-7db45ddcff-dtl82   1/1     Running   0          20s
+   nginx-deployment-7db45ddcff-lw4jz   1/1     Running   0          20s
+   ```
+5. Now, this example NGINX is up and running inside Kubernetes!
+6. To access it locally, initiate a port-forward. First, re-run `kubectl get pods` and copy one of the pod names.
+7. Then, execute `kubectl port-forward nginx-pod-name 3000:80`.
+8. Open your browser and navigate to `localhost:3000` to view NGINX.

@@ -1,0 +1,211 @@
+# Pods in Kubernetes
+
+Kubernetes (k8s) is an open-source system for automating deployment, scaling, and management of containerized applications. A Kubernetes pod is the smallest unit of a Kubernetes application, representing one or more Linux® containers.
+
+In Kubernetes, the running pod often represents the final outcome of various configurations and setups. Whether you're creating secrets, environment variables, or volumes, all these components are utilized by the pod to execute the desired processes.
+
+For more detailed information about pod concepts, you can explore resources from [Red Hat's documentation](https://www.redhat.com/en/topics/containers/what-is-kubernetes-pod) or refer to the [official Kubernetes documentation](https://kubernetes.io/docs/concepts/workloads/pods/).
+
+
+## Preparations
+
+Before we start, let's ensure that all necessary components are properly set up:
+
+1. Confirm that `kind get clusters` command returns "kind".
+
+2. Verify that `kubectl get ns` command returns the following namespaces:
+    ```
+    default              Active   85s
+    kube-node-lease      Active   85s
+    kube-public          Active   85s
+    kube-system          Active   85s
+    local-path-storage   Active   81s
+    ```
+
+3. Ensure that `docker ps` command returns containers similar to:
+    ```
+    ea8a03090f38   kindest/node:v1.29.2   
+    fd02087d52ea   registry:2
+    ```
+
+If only the `kubectl` step is failing, you can try the following steps:
+
+1. Run `kubectl config get-contexts` and verify that it returns a list. Search for "kind-kind" within the list.
+   
+2. If "kind-kind" context is not found, set the correct context using:
+    ```
+    kubectl config set-context kind-kind
+    ```
+   
+3. Once the correct context is set, retry the command:
+    ```
+    kubectl get ns
+    ```
+   
+
+Let's refine the explanation of the basic Pod YAML:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.14.2
+    ports:
+    - containerPort: 80
+```
+
+This YAML file starts a Pod in Kubernetes with an Nginx server without any customizations. Here's a breakdown of what it includes:
+
+- `apiVersion`: Specifies the version of the Kubernetes API being used. In this case, the Pod is part of the "v1" API version. You can check supported resources and API versions by running `kubectl api-resources`.
+
+- `kind`: Identifies the type of Kubernetes object being created or managed. Here, we're creating a Pod.
+
+- `metadata`: Contains organizational and informational details about the Kubernetes object, such as its name, namespace (which we'll explore in the future), labels, etc. You can learn more about metadata [here](https://kubernetes.io/docs/reference/kubernetes-api/common-definitions/object-meta/#ObjectMeta).
+
+- `spec.containers`: Defines the containers to be run within the Pod. Each entry in this list represents a separate container. In this example, we have:
+  1. The name of the container.
+  2. The Docker image to be used for the container.
+  3. The port exposed by the container.
+
+For more detailed documentation on each field that can be modified or added within the `spec` field of a Pod API, refer to [PodSpec](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#PodSpec). You can also consider this API as configuring the entire environment for your application. Whenever your application requires specific configurations, you can consult this API to find where to add them. (Additional examples are provided at the end.)
+
+## Your first pod!
+
+In the examples/pod folder, you'll find the `nginx.yaml` file. Let's apply it into our local Kubernetes environment.
+
+Assuming all prerequisites are in place, follow these steps:
+
+1. Navigate to the `examples/pod` directory from the root of this project.
+2. Use the command `ls` to confirm the presence of the `nginx.yaml` file.
+3. Execute `kubectl apply -f nginx.yaml`. The result should display: "pod/nginx created".
+4. Run `kubectl get pods`. The output might initially show the status as "creating" or "pending". Wait momentarily and re-run the command.
+   ```sh
+   nginx                         1/1     Running   0          13s
+   ```
+5. The NGINX container is now operational within Kubernetes!
+6. To access it locally, execute a port-forward with `kubectl port-forward nginx 3000:80`.
+7. Open your browser and navigate to `localhost:3000` to access the NGINX server.
+8. If needed, delete the pod using `kubectl delete pod nginx`.
+9. Re-run `kubectl get pods` to confirm the deletion of the nginx pod.
+
+
+## Examples
+
+Here are some examples of pod configurations, provided here as a reference. However, in a real usage, always check if there are any additional steps outlined in the documentation.
+
+### Pod with environment variables
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.14.2
+    env:
+      - name: ENV1
+        value: "value1"
+      - name: ENV2
+        value: "value2"
+    ports:
+    - containerPort: 80
+```
+
+### Pod with environment variables from secrets
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.14.2
+    env:
+      - name: ENV_FROM_SECRETS
+        valueFrom:
+          secretKeyRef:
+            name: mysqlpwd
+            key: password
+    ports:
+    - containerPort: 80
+```
+
+### Pod with resources limits
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.14.2
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "250m"
+      limits:
+        memory: "128Mi"
+        cpu: "500m"
+    ports:
+    - containerPort: 80
+```
+
+
+### Pod with postStart and preStop hooks
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.14.2
+    lifecycle:
+      postStart:
+        exec:
+          command: ["/bin/sh", "-c", "echo Hello from the postStart handler > /usr/share/message"]
+      preStop:
+        exec:
+          command: ["/bin/sh","-c","nginx -s quit; while killall -0 nginx; do sleep 1; done"]
+    ports:
+    - containerPort: 80
+```
+
+
+
+### Pod with initContainer to check if the Database is up
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.14.2
+    lifecycle:
+      postStart:
+        exec:
+          command: ["/bin/sh", "-c", "echo Hello from the postStart handler > /usr/share/message"]
+      preStop:
+        exec:
+          command: ["/bin/sh","-c","nginx -s quit; while killall -0 nginx; do sleep 1; done"]
+    ports:
+    - containerPort: 80
+  - name: init-mydb
+    image: busybox:1.28
+    command: ['sh', '-c', "until nslookup mydb.host.com; do echo waiting for mydb; sleep 2; done"]
+```

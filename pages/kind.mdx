@@ -1,0 +1,32 @@
+# Setting Up Your Playground
+
+Before diving into Kubernetes concepts, let's make sure we have all the prerequisites in place, as mentioned in the last step. Here's the list of requirements again.
+
+### Requirements:
+- [Docker](https://docs.docker.com/engine/install/)
+- [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
+
+You can start by playing with the kind quick start if you'd like, but it's not necessary. Just make sure the package is installed and ready to create and delete clusters.
+
+# Creating Your Cluster
+
+To emulate a cloud scenario, we'll not only create the cluster but also set up a private registry to "push" test images.
+
+This is necessary because the cluster created won't be able to access images from your local Docker, and to avoid using a real registry, we'll create a private one locally to emulate this behavior.
+
+In the setup folder, you'll find the file "kind-with-registry.sh", which does the following:
+
+1. Checks if your local Docker already has a running container of the registry image, essentially a local Docker image registry to avoid pushing your testing images to real registries.
+
+2. Creates the kind cluster with a custom configuration to utilize the previously created registry.
+
+3. Adds the registry configuration for every created node.
+
+4. Connects the registry image and the kind image to the same network.
+
+You can refer to the comments in the file to understand more about the commands, and [here](https://kind.sigs.k8s.io/docs/user/local-registry/) is the source.
+
+Now you're ready to move on to the [next step!](/pod)
+
+OBS: if you are using <b>windows</b>, use the ps1 file :)

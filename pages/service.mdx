@@ -1,0 +1,115 @@
+# Service - Introduction
+
+In Kubernetes, a Service is an abstraction that defines a logical set of Pods and a policy by which to access them. It provides a stable endpoint (usually an IP address and port) to interact with a group of Pods serving the same application. 
+
+## Why Use Services?
+
+Let's imagine the following scenario: you've deployed the application, the pod is already running, and everything is working. You grab the IP address of that specific pod and use it as an environment variable for another application. In this case, everything will work smoothly, and the second application will be able to access it without any issues.
+
+Now imagine that you've updated your application's version and the old pods were deleted while the new ones took their place. That IP address you obtained earlier no longer exists, and you need to update the second application again. You can see the problem, right? That's why the service was designed for.
+
+When Pods are created in Kubernetes, they are ephemeral and can be terminated or replaced at any time. Services provide a way to decouple the access to Pods from their underlying network configuration. They ensure that clients can reliably access the application running inside Pods, regardless of changes in the Pod's IP addresses or scheduling.
+
+
+Let's try to replicate this issue together, first in the folder examples/curl you will have the following file:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curl-pod
+spec:
+  containers:
+  - name: curl-container
+    image: alpine:latest
+    command: ["/bin/sh", "-c"]
+    args:
+    - "apk add --no-cache curl && sleep infinity"
+```
+It starts an "empty" pod with Linux so that we can use it as a fake secondary application. Let's go through the steps:
+
+1. First, run `kubectl apply -f examples/curl/alpine.yaml` to create the pod with Linux.
+2. Now, let's use a new command that allows us to run commands inside a specific pod:
+   - `kubectl exec -it curl-pod -- sh`, this command will open a terminal session for you inside the chosen pod, in this case, the pod with Linux.
+3. Inside this terminal, try running `curl` just to verify if the command exists.
+4. Now, in another terminal tab of your machine, run `kubectl get pods` to check if the nginx pods are there. If they are not, run `kubectl apply -f examples/deployment/nginx.yaml` to create them again.
+5. Run `kubectl get pods` again and choose one of the nginx pods, for example:
+    ```sh
+        curl-pod                            1/1     Running   0          6m28s
+        // I'll choose this one below
+        nginx-deployment-7db45ddcff-29qvz   1/1     Running   0          24s
+        nginx-deployment-7db45ddcff-4skkl   1/1     Running   0          24s
+        nginx-deployment-7db45ddcff-lmx5b   1/1     Running   0          24s
+    ```
+6. Now, to find out the IP of the chosen pod, run `kubectl describe pod <chosen-pod-name>`. The result will be something similar to the one below, with some information removed to reduce size:
+```sh
+    Name:             nginx-deployment-7db45ddcff-29qvz
+    Namespace:        default
+    Priority:         0
+    Service Account:  default
+    Node:             kind-control-plane/172.18.0.2
+    Start Time:       Thu, 18 Apr 2024 15:52:44 -0300
+    Labels:           app=nginx
+                    pod-template-hash=7db45ddcff
+    Annotations:      <none>
+    Status:           Running
+    // Here's the IP!!!
+    IP:               10.244.0.6
+    IPs:
+    IP:           10.244.0.6
+    Controlled By:  ReplicaSet/nginx-deployment-7db45ddcff
+```
+
+7. Now, go back to the terminal from step 2 and run `curl <nginx-pod-ip>`, and the response will be an HTML from nginx! That means we successfully accessed the other pod.
+
+8. Back to the terminal of your machine, run `kubectl delete pod -l app=nginx` to delete the pods from the nginx deployment, following what we learned on the deployment page, the pods will restart. To see the new pods, run `kubectl get pods`.
+
+9. In the terminal created in step 2, run the same command `curl <nginx-pod-ip>` as in step 7 without changing the IP, and the request will fail because the IP was changed when creating the new pods.
+
+## Solving the problem
+
+
+Let's create a simple NGINX Service:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  selector:
+    app: nginx
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: ClusterIP
+```
+
+In this example:
+- `metadata.name`: Specifies the name of the Service.
+- `spec.selector`: Defines the Pods that the Service will target based on their labels. In this case, it selects Pods labeled with `app: nginx`.
+- `spec.ports`: Specifies the port configuration. It exposes port 80 on the Service, which forwards traffic to port 80 on the targeted Pods.
+- `spec.type`: Sets the type of the Service to ClusterIP.
+
+
+1. Run `kubectl apply -f examples/services/nginx.yaml` to create the service.
+2. If you have deleted the pod with Linux (curl-pod), recreate it with `kubectl apply -f examples/curl/alpine.yaml`.
+3. Run `kubectl exec -it curl-pod -- sh` to recreate the terminal if you have closed it.
+4. Now execute `curl nginx-service` and see that the response with the HTML is returned normally.
+5. In a separate terminal on your machine, delete all pods again with `kubectl delete pod -l app=nginx` and wait for the new ones to start.
+6. Run step 4 again and you will see that the request still works, we're done! we no longer need to worry about the automatically generated IP.
+
+## Types of Services
+
+Kubernetes supports various types of Services, each with different networking characteristics:
+
+1. **ClusterIP**: Exposes the Service on an internal IP within the cluster. This type makes the Service accessible only from within the cluster. It is the default type.
+
+2. **NodePort**: Exposes the Service on a port on each node in the cluster. This type makes the Service accessible externally using the node's IP address and the specified port.
+
+3. **LoadBalancer**: Creates an external load balancer in the cloud provider's network that forwards traffic to the Service. This type is mainly used when running Kubernetes in a cloud environment that supports external load balancers.
+
+4. **ExternalName**: Maps the Service to the contents of the `externalName` field. This type allows you to reference external services by name.
+
+
